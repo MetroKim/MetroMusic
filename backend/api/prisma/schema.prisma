@@ -23,15 +23,27 @@ model User {
   downloads      DownloadRecord[]
   recentlyPlayed RecentlyPlayed[]
   listeningEvents ListeningEvent[]
-  preference     UserPreference?
+  preference      UserPreference?
   following      Follow[]          @relation("follower")
-  followers      Follow[]          @relation("following")
+  followers      Follow[]         @relation("following")
   reportsFiled   ContentReport[]  @relation("reporter")
   notifications  Notification[]
   pushTokens     PushToken[]
   artistClaims   ArtistClaim[]
   releases       ReleaseSubmission[]
   mediaJobs      MediaJob[]
+  roles          UserRole[]
+}
+
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String
+  role      String
+  grantedBy String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
 }
 
 model RefreshToken {
@@ -78,14 +90,14 @@ model PushToken {
 }
 
 model Notification {
-  id        String    @id @default(uuid())
+  id        String   @id @default(uuid())
   userId    String
   title     String
   body      String
-  kind      String    @default("general")
+  kind      String   @default("general")
   readAt    DateTime?
-  createdAt DateTime  @default(now())
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model ContentReport {
@@ -96,7 +108,7 @@ model ContentReport {
   reason      String
   status      String   @default("open")
   createdAt   DateTime @default(now())
-  reporter    User     @relation("reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reporter    User     @relation(fields: [reporterId], references: [id], onDelete: Cascade)
 }
 
 model ArtistClaim {
@@ -151,9 +163,6 @@ model Album {
 
 model Track {
   id          String                  @id @default(uuid())
-  // Convergence seam: the external source's stable ID (e.g. a
-  // YouTube video id). Upserted via /catalog/resolve so client-side
-  // external tracks get exactly one canonical catalog row.
   externalId   String?                 @unique
   source       String?
   title       String
@@ -216,14 +225,15 @@ model Favorite {
   @@unique([userId, trackId])
 }
 
+// History: every play is its own row; Home rail dedups to latest N.
 model RecentlyPlayed {
-  id          String   @id @default(uuid())
-  userId      String
-  trackId     String
-  playedAt    DateTime @default(now())
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
+  userId    String
+  trackId   String
+  playedAt  DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, trackId])
+  @@index([userId, playedAt])
 }
 
 model ListeningEvent {

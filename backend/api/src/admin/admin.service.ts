@@ -15,13 +15,44 @@ export class AdminService {
         this.prisma.playlist.count(),
         this.prisma.contentTakedownCase.count({ where: { status: 'active' } }),
       ]);
-    return { users, tracks, albums, artists, playlists, activeTakedowns: takedowns };
+    return {
+      users,
+      tracks,
+      albums,
+      artists,
+      playlists,
+      activeTakedowns: takedowns,
+    };
   }
 
-  async createUserRole(userId: string, role: string) {
+  async createUserRole(userId: string, role: string, grantedBy: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('USER_NOT_FOUND');
-    return { userId, role, granted: true };
+
+    const existing = await this.prisma.userRole.findUnique({
+      where: { userId_role: { userId, role } },
+    });
+    if (existing) return { userId, role, granted: true, alreadyGranted: true };
+
+    await this.prisma.userRole.create({
+      data: { userId, role, grantedBy },
+    });
+    return { userId, role, granted: true, alreadyGranted: false };
+  }
+
+  async revokeUserRole(userId: string, role: string) {
+    const revoked = await this.prisma.userRole.deleteMany({
+      where: { userId, role },
+    });
+    if (revoked.count === 0) throw new NotFoundException('ROLE_NOT_FOUND');
+    return { userId, role, revoked: true };
+  }
+
+  async listRoles(userId: string) {
+    return this.prisma.userRole.findMany({
+      where: { userId },
+      select: { id: true, role: true, grantedBy: true, createdAt: true },
+    });
   }
 
   async listTakedowns() {

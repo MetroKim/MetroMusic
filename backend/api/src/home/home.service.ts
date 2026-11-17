@@ -17,7 +17,7 @@ export class HomeService {
       this.prisma.recentlyPlayed.findMany({
         where: { userId },
         orderBy: { playedAt: 'desc' },
-        take: 12,
+        take: 50,
         select: { trackId: true },
       }),
       this.prisma.favorite.findMany({
@@ -28,14 +28,25 @@ export class HomeService {
       }),
     ]);
 
+    // Dedup by track, keep the most recent play of each, take 12
+    // (RecentStore rail contract, Plan §5.5).
+    const seen = new Set<string>();
+    const recentTrackIds: string[] = [];
+    for (const r of recent) {
+      if (seen.has(r.trackId)) continue;
+      seen.add(r.trackId);
+      recentTrackIds.push(r.trackId);
+      if (recentTrackIds.length === 12) break;
+    }
+
     const sections: HomeSection[] = [];
 
-    if (recent.length > 0) {
+    if (recentTrackIds.length > 0) {
       sections.push({
         sectionType: 'recently_played',
         title: 'Recently Played',
         layout: 'rail',
-        trackIds: recent.map((r) => r.trackId),
+        trackIds: recentTrackIds,
       });
     }
 
@@ -52,10 +63,9 @@ export class HomeService {
   }
 
   async recordPlay(userId: string, trackId: string) {
-    await this.prisma.recentlyPlayed.upsert({
-      where: { userId_trackId: { userId, trackId } },
-      create: { userId, trackId },
-      update: { playedAt: new Date() },
+    // Every play is its own history row; the rail dedups in feed().
+    await this.prisma.recentlyPlayed.create({
+      data: { userId, trackId },
     });
     await this.prisma.listeningEvent.create({
       data: { userId, trackId },
