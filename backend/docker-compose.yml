@@ -1,0 +1,70 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: breezze
+      POSTGRES_PASSWORD: breezze_dev
+      POSTGRES_DB: breezze
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U breezze"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://breezze:breezze_dev@postgres:5432/breezze
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me}
+      CDN_BASE_URL: ${CDN_BASE_URL:-http://localhost:3000/media}
+      MEDIA_SIGNING_KEY: ${MEDIA_SIGNING_KEY:-dev-only-signing-key}
+      PORT: "3000"
+    ports:
+      - "3000:3000"
+
+  worker:
+    build:
+      context: ./api
+      dockerfile: Dockerfile.worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://breezze:breezze_dev@postgres:5432/breezze
+      REDIS_URL: redis://redis:6379
+      MEDIA_ROOT: /media
+    volumes:
+      - mediadata:/media
+
+volumes:
+  pgdata:
+  redisdata:
+  mediadata:

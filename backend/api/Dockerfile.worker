@@ -1,0 +1,16 @@
+FROM node:20-slim
+
+# FFmpeg + FFprobe are required by the transcode stage.
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY package*.json ./
+COPY prisma ./prisma
+RUN npm install && npx prisma generate
+
+COPY . .
+RUN npm run build
+
+CMD ["node", "dist/src/workers/worker.main.js"]

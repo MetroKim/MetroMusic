@@ -1,65 +1,80 @@
-# Breezze 🎵
+# Breezze
 
-**An open-source music platform.** One Flutter codebase, every platform. Discovery, lossless streaming, and offline downloads.
+Music discovery, streaming, downloads and word-synced lyrics in one Flutter codebase.
 
-> Breezze is an independent, original product. It is not affiliated with YouTube, Google, Spotify, or Apple. Capability categories familiar from major music services are used as functional reference only — Breezze uses its own brand, tokens, components, and design language. No proprietary assets, source code, private APIs, or trade dress from any other product are used.
+## Features
 
-## What is Breezze?
+- Search: live results, keyless, with artwork
+- Stream: highest-bitrate audio via native engine (ExoPlayer / AVFoundation)
+- Now Playing: breathing artwork, transport controls, seek, word-synced karaoke lyrics
+- Background audio: lock-screen controls and notification (Android/iOS via audio_service, no-op elsewhere)
+- Download: offline library (audio.m4a + cover.jpg + lyrics.lrc per track) with live byte-accurate progress
+- Favorites and history: persisted locally; Home rails show real Recently Played + Favorites
+- Design: monochrome token system, light and dark, Atmosphere materials
 
-Breezze mixes the strongest ideas of two open music clients — [BitChord](https://github.com/kushagrasinghx/BitChord) (Kotlin, Android) and [Liner](https://github.com/tryliner/desktop) (Electron, desktop) — rebuilt from scratch as one shared-codebase Flutter app:
+## Run it
 
-| Idea | Origin | In Breezze |
-|---|---|---|
-| Pluggable module sources, lossless FLAC/ALAC, crossfade, Automix, downloads, scrobbling | BitChord | `packages/audio_contracts` |
-| Cross-platform shell, fallback playback, syllable-synced lyrics, local tracks | Liner | `packages/api_client` source chain |
-| One codebase across OSes | Both | ADR-001 (Flutter-first) |
+Requires Flutter 3.22+.
 
-**No code was copied from either repository.** All Breezze code is original; both projects are credited as inspiration.
+Steps:
+
+1. `git clone -b breezze https://github.com/MetroKim/MetroMusic.git`
+2. `cd MetroMusic/apps/mobile`
+3. `flutter create .` (generates android/, ios/, web/ runners)
+4. `flutter pub get`
+5. `flutter analyze` (should be clean)
+6. `flutter test` (runs the package test suites)
+7. `flutter run` (no keys, no defines; works out of the box)
+
+### Background audio on Android
+
+After `flutter create .`, add this service block inside the application element of `android/app/src/main/AndroidManifest.xml`:
+
+```xml
+<service
+    android:name="com.ryanheise.audioservice.AudioService"
+    android:foregroundServiceType="mediaPlayback"
+    android:exported="true">
+    <intent-filter>
+        <action android:name="android.media.browse.MediaBrowserService" />
+    </intent-filter>
+</service>
+<receiver
+    android:name="com.ryanheise.audioservice.MediaButtonReceiver"
+    android:exported="true">
+    <intent-filter>
+        <action android:name="android.intent.action.MEDIA_BUTTON" />
+    </intent-filter>
+</receiver>
+```
+
+And these permissions before the application element:
+
+```xml
+<uses-permission android:name="android.permission.INTERNET" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+```
 
 ## Architecture
 
 ```
-breezze/
-├── apps/mobile          # Flutter app (Android, iOS, + desktop/web targets)
-├── packages/
-│   ├── design_system    # Tokens, Atmosphere materials, theme
-│   ├── audio_contracts  # Player, queue, lyrics, crossfade, AutoMix, quality
-│   └── api_client       # Source chain, downloads, membership, provider adapters
-└── docs/                # ADRs, audit gap register
+apps/mobile                  Flutter app
+packages/
+  design_system/             tokens, Atmosphere materials, theme
+  audio_contracts/           player state machine, queue, lyrics, crossfade,
+                             AutoMix, scrobbling, quality tiers (+ tests)
+  api_client/                playback source, LRCLIB lyrics, downloads
+                             library with progress, provider contracts
+docs/
+  architecture/              ADR-001
+  audit/                     gap register (honest per-requirement status)
 ```
 
-**Source chain (how music is fetched):** a BitChord-style pluggable module source is primary; a Liner-style local/handoff source is the fallback (spec §52.7). If no licensed source exists, Breezze shows an unavailable state — it never fakes a stream.
+Keyless by design: search and playback run through youtube_explode_dart (no API key, no quota); lyrics through LRCLIB (free, community). No credentials to configure.
 
-## Features
+## Notes
 
-- **Lossless + Hi-Res quality tiers** — AAC → Lossless FLAC → Hi-Res, honest labels only (never upsampled)
-- **Offline downloads** — eligibility-checked, resumable, app-private storage
-- **Premium tiers** — free/premium/family/student; lossless, Hi-Res, downloads, AutoMix are server-gated entitlements
-- **Automix** — DJ transitions with beat-matching (±10% BPM, double-time folding)
-- **Word-synced lyrics** — enhanced-LRC engine with binary-search lookup
-- **Scrobbling** — Last.fm/ListenBrainz-style sink with the 30-second rule
-- **Monochrome Atmosphere design system** — your tokens, light + dark
-
-## Getting started
-
-Requires Flutter 3.22+.
-
-```bash
-git clone -b breezze https://github.com/MetroKim/MetroMusic.git
-cd MetroMusic/apps/mobile
-flutter pub get
-flutter run
-flutter test ../../packages
-```
-
-## Downloads & rights
-
-Offline downloads are entitlement- and rights-checked on the server side before any job starts (spec §54.2). Breezze never proxies or re-hosts streams it isn't authorized to serve.
-
-## License
-
-Open source — see the repository LICENSE. Breezze's original code is released to the community for study, modification, and contribution.
-
-## Contributing
-
-PRs welcome. See `docs/audit/gap-register.md` for the honest per-requirement status — pick any NOT STARTED line and go.
+- Breezze is an independent product, not affiliated with any streaming platform.
+- Streams are resolved per-play; downloads store the highest-bitrate audio rendition available at download time.
+- `flutter create .` generates the platform runners; they are build output, not committed.

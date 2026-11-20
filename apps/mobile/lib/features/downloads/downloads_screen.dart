@@ -1,206 +1,200 @@
+import 'dart:io';
+
+import 'package:breezze_api_client/breezze_api_client.dart';
+import 'package:breezze_design_system/breezze_design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'widgets/bz_brand_icons.dart';
+import '../../app/bootstrap.dart';
+import '../../app/downloads_controller.dart';
+import '../../widgets/bz_brand_icons.dart';
+import '../player/player_controller.dart';
 
-/// Downloads section — spec §6.1 "Downloaded Music", §19.4.
-///
-/// Apple Music-style list of offline tracks with progress, pause/resume,
-/// retry, and remove. Driven by the global DownloadManager.
-class DownloadsScreen extends ConsumerWidget {
+/// Downloads library — offline tracks with cover art + lyrics, plus a
+/// live in-progress section (§6.1).
+class DownloadsScreen extends ConsumerStatefulWidget {
   const DownloadsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return SafeArea(
-      child: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-              child: Text('Downloads',
-                  style: Theme.of(context).textTheme.displayMedium),
-            ),
-          ),
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: _DownloadList(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  ConsumerState<DownloadsScreen> createState() => _DownloadsScreenState();
 }
 
-/// Live download list wired to the manager stream.
-class _DownloadList extends StatelessWidget {
-  const _DownloadList();
-
-  @override
-  Widget build(BuildContext context) {
-    // Wired in bootstrap to DownloadManager.jobUpdates; the manager is
-    // the single source of truth (§53.1 applied to downloads).
-    return const Column(
-      children: [
-        _DownloadRow(
-          title: 'Nightcall',
-          artist: 'Kavinsky',
-          state: DownloadRowState.downloaded,
-          tier: 'Lossless',
-        ),
-        _DownloadRow(
-          title: 'Midnight City',
-          artist: 'M83',
-          state: DownloadRowState.downloading,
-          progress: 0.62,
-          tier: 'Hi-Res',
-        ),
-        _DownloadRow(
-          title: 'Redbone',
-          artist: 'Childish Gambino',
-          state: DownloadRowState.failed,
-          tier: 'Lossless',
-        ),
-      ],
-    );
-  }
-}
-
-enum DownloadRowState { downloaded, downloading, paused, failed }
-
-class _DownloadRow extends StatefulWidget {
-  final String title;
-  final String artist;
-  final DownloadRowState state;
-  final String tier;
-  final double progress;
-
-  const _DownloadRow({
-    required this.title,
-    required this.artist,
-    this.state = DownloadRowState.downloaded,
-    required this.tier,
-    this.progress = 0,
-  });
-
-  @override
-  State<_DownloadRow> createState() => _DownloadRowState();
-}
-
-class _DownloadRowState extends State<_DownloadRow> {
-  late DownloadRowState _state;
-  late double _progress;
+class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
+  List<DownloadedTrack> _tracks = [];
+  var _loading = true;
 
   @override
   void initState() {
     super.initState();
-    _state = widget.state;
-    _progress = widget.progress;
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final dir = await downloadsDirectory();
+    final library = DownloadsLibrary(
+      root: dir,
+      source: ref.read(youtubeSourceProvider),
+      lyrics: ref.read(lyricsProvider),
+    );
+    final tracks = await library.list();
+    if (!mounted) return;
+    setState(() {
+      _tracks = tracks;
+      _loading = false;
+    });
+  }
+
+  void _play(DownloadedTrack track) {
+    ref.read(playerControllerProvider.notifier).playTrack(
+          trackId: track.trackId,
+          title: track.title,
+          artist: track.artist,
+          origin: 'downloads',
+          sourceContext: 'Downloads',
+        );
+  }
+
+  Future<void> _remove(DownloadedTrack track) async {
+    final dir = await downloadsDirectory();
+    await DownloadsLibrary(
+      root: dir,
+      source: ref.read(youtubeSourceProvider),
+      lyrics: ref.read(lyricsProvider),
+    ).remove(track.trackId);
+    _refresh();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final progress = ref.watch(downloadProgressProvider);
+    final inProgress = progress.entries.toList();
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.bzSurface1,
-        borderRadius: BorderRadius.circular(BzRadius.card),
-        border: Border.all(color: theme.bzSeparator),
-      ),
-      child: Row(
+    // Refresh the completed list when the last in-flight download ends.
+    if (inProgress.isEmpty && _tracks.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _refreshIfNeeded());
+    }
+
+    return SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          BzBnoteMark(size: 36, color: theme.bzText2),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(widget.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleMedium),
-                    ),
-                    Text(widget.tier,
-                        style: TextStyle(
-                            fontSize: BzType.footnote, color: theme.bzText2)),
-                  ],
+                Expanded(
+                  child: Text('Downloads',
+                      style: theme.textTheme.displayMedium),
                 ),
-                const SizedBox(height: 6),
-                if (_state == DownloadRowState.downloading ||
-                    _state == DownloadRowState.paused)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(2),
-                    child: TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0, end: _progress),
-                      duration: const Duration(milliseconds: 300),
-                      builder: (context, value, _) => LinearProgressIndicator(
-                        value: value,
-                        minHeight: 3,
-                        backgroundColor: theme.bzSeparator,
-                        color: theme.bzAccent,
-                      ),
-                    ),
-                  )
-                else
-                  Text(_stateLabel,
-                      style: TextStyle(
-                          fontSize: BzType.footnote, color: theme.bzText2)),
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _refresh,
+                ),
               ],
             ),
           ),
-          _ActionButton(
-            state: _state,
-            onPause: () =>
-                setState(() => _state = DownloadRowState.paused),
-            onRetry: () =>
-                setState(() => _state = DownloadRowState.downloading),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : ListView(
+                    padding: const EdgeInsets.fromLTRB(0, 8, 0, 220),
+                    children: [
+                      // In-progress section (live)
+                      for (final entry in inProgress)
+                        ListTile(
+                          leading: const SizedBox(
+                            width: 48,
+                            height: 48,
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2),
+                            ),
+                          ),
+                          title: Text(
+                              'Downloading… ${(entry.value * 100).round()}%',
+                              style: theme.textTheme.titleMedium),
+                          subtitle: ClipRRect(
+                            borderRadius: BorderRadius.circular(2),
+                            child: LinearProgressIndicator(
+                              value: entry.value,
+                              minHeight: 3,
+                              backgroundColor: theme.bzSeparator,
+                              color: theme.bzAccent,
+                            ),
+                          ),
+                        ),
+                      // Completed downloads
+                      if (_tracks.isEmpty && inProgress.isEmpty)
+                        Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const SizedBox(height: 48),
+                              BzBnoteMark(size: 64, color: theme.bzText2),
+                              const SizedBox(height: 16),
+                              Text('No downloads yet',
+                                  style: theme.textTheme.titleMedium),
+                              const SizedBox(height: 8),
+                              Text(
+                                  'Search a song and tap the download icon.',
+                                  style: theme.textTheme.bodyMedium),
+                            ],
+                          ),
+                        )
+                      else
+                        for (final track in _tracks)
+                          ListTile(
+                            leading: track.coverPath != null
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(
+                                        BzRadius.artwork),
+                                    child: Image.file(
+                                      File(track.coverPath!),
+                                      width: 48,
+                                      height: 48,
+                                      errorBuilder: (_, __, ___) =>
+                                          BzBnoteMark(
+                                              size: 48, color: theme.bzText2),
+                                    ),
+                                  )
+                                : BzBnoteMark(size: 48, color: theme.bzText2),
+                            title: Text(track.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis),
+                            subtitle: Text(
+                              '${track.artist}'
+                              '${track.lyricsPath != null ? ' · lyrics saved' : ''}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline),
+                                  onPressed: () => _remove(track),
+                                ),
+                                const Icon(Icons.download_done,
+                                    color: Colors.green),
+                              ],
+                            ),
+                            onTap: () => _play(track),
+                          ),
+                    ],
+                  ),
           ),
         ],
       ),
     );
   }
 
-  String get _stateLabel {
-    switch (_state) {
-      case DownloadRowState.downloaded:
-        return 'Downloaded · available offline';
-      case DownloadRowState.failed:
-        return 'Download failed · tap retry';
-      default:
-        return '';
-    }
-  }
-}
+  var _refreshedAt = 0;
 
-class _ActionButton extends StatelessWidget {
-  final DownloadRowState state;
-  final VoidCallback onPause;
-  final VoidCallback onRetry;
-
-  const _ActionButton({
-    required this.state,
-    required this.onPause,
-    required this.onRetry,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    switch (state) {
-      case DownloadRowState.downloading:
-        return IconButton(icon: const Icon(Icons.pause), onPressed: onPause);
-      case DownloadRowState.paused:
-      case DownloadRowState.failed:
-        return IconButton(icon: const Icon(Icons.play_arrow), onPressed: onRetry);
-      case DownloadRowState.downloaded:
-        return const Icon(Icons.download_done);
-    }
+  void _refreshIfNeeded() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now - _refreshedAt < 1000) return; // throttle
+    _refreshedAt = now;
+    _refresh();
   }
 }

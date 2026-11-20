@@ -1,17 +1,20 @@
+import 'package:breezze_design_system/breezze_design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'widgets/bz_brand_icons.dart';
+import '../../core/auth/auth_session.dart';
+import '../../widgets/bz_brand_icons.dart';
 
-/// Settings — audio quality, playback, downloads, membership (§19, §18).
-/// Premium-gated toggles are hints; the server is the entitlement
-/// authority (§18.4).
+/// Settings — audio quality, playback, downloads, account (§19).
+/// Breezze is fully free: no membership or upgrade UI anywhere.
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final auth = ref.watch(authSessionProvider);
+    final email = auth is AuthSignedIn ? auth.email : null;
 
     return SafeArea(
       child: ListView(
@@ -19,20 +22,32 @@ class SettingsScreen extends ConsumerWidget {
         children: [
           Text('Settings', style: theme.textTheme.displayMedium),
           const SizedBox(height: 16),
+          _section(theme, 'Account', [
+            ListTile(
+              leading: BzBnoteMark(size: 28, color: theme.bzText1),
+              title: Text(email ?? 'Not signed in'),
+              subtitle: Text('Breezze — free for everyone',
+                  style: theme.textTheme.bodySmall),
+            ),
+            ListTile(
+              leading: const Icon(Icons.logout),
+              title: const Text('Sign out'),
+              onTap: () {
+                ref.read(authSessionProvider.notifier).signOut();
+              },
+            ),
+          ]),
           _section(theme, 'Audio Quality', [
             _qualityPicker(theme, 'Streaming Quality'),
             _qualityPicker(theme, 'Download Quality'),
           ]),
           _section(theme, 'Playback', [
             _switchTile(theme, 'Gapless Playback', true),
-            _switchTile(theme, 'AutoMix (Premium)', false),
+            _switchTile(theme, 'AutoMix', false),
             _switchTile(theme, 'Sound Check', false),
           ]),
           _section(theme, 'Downloads', [
             _switchTile(theme, 'Download over Wi-Fi only', true),
-          ]),
-          _section(theme, 'Membership', [
-            _membershipTile(theme),
           ]),
         ],
       ),
@@ -74,20 +89,6 @@ class SettingsScreen extends ConsumerWidget {
 
   Widget _switchTile(ThemeData theme, String title, bool initial) {
     return _SwitchRow(title: title, initial: initial);
-  }
-
-  Widget _membershipTile(ThemeData theme) {
-    return ListTile(
-      leading: BzBnoteMark(size: 28, color: theme.bzAccent),
-      title: const Text('Upgrade to Premium'),
-      subtitle: Text(
-          'Unlock lossless audio, Hi-Res, downloads and AutoMix',
-          style: theme.textTheme.bodySmall),
-      trailing: ElevatedButton(
-        onPressed: () {},
-        child: const Text('Upgrade'),
-      ),
-    );
   }
 }
 

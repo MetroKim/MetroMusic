@@ -1,0 +1,336 @@
+// Breezze Prisma schema — Plan §12 (P0 subset).
+// Free app: no subscription/billing models — Breezze has no paywall.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String           @id @default(uuid())
+  email          String           @unique
+  passwordHash   String
+  displayName    String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  refreshTokens  RefreshToken[]
+  favorites      Favorite[]
+  playlists      Playlist[]
+  downloads      DownloadRecord[]
+  recentlyPlayed RecentlyPlayed[]
+  listeningEvents ListeningEvent[]
+  preference     UserPreference?
+  following      Follow[]          @relation("follower")
+  followers      Follow[]          @relation("following")
+  reportsFiled   ContentReport[]  @relation("reporter")
+  notifications  Notification[]
+  pushTokens     PushToken[]
+  artistClaims   ArtistClaim[]
+  releases       ReleaseSubmission[]
+  mediaJobs      MediaJob[]
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  token     String    @unique
+  familyId  String
+  userId    String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserPreference {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  country     String?
+  language    String?
+  genres      String[]
+  favoriteArtists String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Follow {
+  id          String   @id @default(uuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+  follower    User     @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+}
+
+model PushToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  platform  String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  title     String
+  body      String
+  kind      String    @default("general")
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ContentReport {
+  id          String   @id @default(uuid())
+  reporterId  String
+  targetType  String
+  targetId    String
+  reason      String
+  status      String   @default("open")
+  createdAt   DateTime @default(now())
+  reporter    User     @relation("reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+}
+
+model ArtistClaim {
+  id        String   @id @default(uuid())
+  userId    String
+  artistId  String
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, artistId])
+}
+
+model ReleaseSubmission {
+  id         String   @id @default(uuid())
+  userId     String
+  title      String
+  artistId   String
+  trackCount Int
+  status     String   @default("submitted")
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model MediaJob {
+  id               String   @id @default(uuid())
+  userId           String
+  submissionId     String
+  originalFilename String
+  bytes            Int
+  status           String   @default("quarantined")
+  createdAt        DateTime @default(now())
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Artist {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  albums    Album[]
+  tracks    Track[]
+}
+
+model Album {
+  id          String    @id @default(uuid())
+  title       String
+  artistId    String
+  releaseDate DateTime?
+  artist      Artist    @relation(fields: [artistId], references: [id])
+  tracks      Track[]
+}
+
+model Track {
+  id          String                  @id @default(uuid())
+  // Convergence seam: the external source's stable ID (e.g. a
+  // YouTube video id). Upserted via /catalog/resolve so client-side
+  // external tracks get exactly one canonical catalog row.
+  externalId   String?                 @unique
+  source       String?
+  title       String
+  artistId    String
+  albumId     String?
+  duration    Int
+  explicit    Boolean                 @default(false)
+  artist      Artist                  @relation(fields: [artistId], references: [id])
+  album       Album?                  @relation(fields: [albumId], references: [id])
+  territories TerritoryAvailability[]
+  rights      RightsUsagePermission[]
+  takedowns   ContentTakedownCase[]
+  attribution ProviderAttribution?
+}
+
+model TerritoryAvailability {
+  id        String   @id @default(uuid())
+  trackId   String
+  territory String
+  track     Track    @relation(fields: [trackId], references: [id])
+
+  @@unique([trackId, territory])
+}
+
+model RightsUsagePermission {
+  id      String    @id @default(uuid())
+  trackId String
+  action  String
+  startAt DateTime?
+  endAt   DateTime?
+  track   Track     @relation(fields: [trackId], references: [id])
+
+  @@unique([trackId, action])
+}
+
+model ContentTakedownCase {
+  id        String   @id @default(uuid())
+  trackId   String
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  track     Track    @relation(fields: [trackId], references: [id])
+}
+
+model ProviderAttribution {
+  id      String @id @default(uuid())
+  trackId String
+  text    String
+  track   Track  @relation(fields: [trackId], references: [id])
+
+  @@unique([trackId])
+}
+
+model Favorite {
+  id        String   @id @default(uuid())
+  userId    String
+  trackId   String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, trackId])
+}
+
+model RecentlyPlayed {
+  id          String   @id @default(uuid())
+  userId      String
+  trackId     String
+  playedAt    DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, trackId])
+}
+
+model ListeningEvent {
+  id        String   @id @default(uuid())
+  userId    String
+  trackId   String
+  playedMs  Int      @default(0)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Playlist {
+  id        String         @id @default(uuid())
+  userId    String
+  name      String
+  createdAt DateTime       @default(now())
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     PlaylistItem[]
+}
+
+model PlaylistItem {
+  id         String   @id @default(uuid())
+  playlistId String
+  trackId    String
+  position   Int
+  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+
+  @@unique([playlistId, trackId])
+}
+
+model DownloadRecord {
+  id        String    @id @default(uuid())
+  userId    String
+  trackId   String
+  status    String    @default("active")
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, trackId])
+}
+
+model Lyrics {
+  id        String   @id @default(uuid())
+  trackId   String   @unique
+  plainText String
+  syncedLrc String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LyricTranslation {
+  id       String @id @default(uuid())
+  lyricsId String
+  language String
+  text     String
+
+  @@unique([lyricsId, language])
+}
+
+model RadioStation {
+  id          String       @id @default(uuid())
+  name        String       @unique
+  description String?
+  genre       String?
+  streamUrl   String
+  isLive      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  programs    RadioProgram[]
+}
+
+model RadioProgram {
+  id          String       @id @default(uuid())
+  stationId   String
+  title       String
+  presenter   String?
+  airsAt      DateTime
+  durationMin Int
+  station     RadioStation @relation(fields: [stationId], references: [id])
+
+  @@unique([stationId, title])
+}
+
+model Composer {
+  id        String   @id @default(uuid())
+  name      String
+  era       String?
+  createdAt DateTime @default(now())
+  works     ClassicalWork[]
+}
+
+model ClassicalWork {
+  id          String   @id @default(uuid())
+  composerId  String
+  title       String
+  catalogCode String?
+  movements   ClassicalMovement[]
+  composer    Composer @relation(fields: [composerId], references: [id])
+
+  @@unique([composerId, title])
+}
+
+model ClassicalMovement {
+  id       String @id @default(uuid())
+  workId   String
+  title    String
+  position Int
+
+  @@unique([workId, position])
+}
