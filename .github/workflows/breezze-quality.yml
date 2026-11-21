@@ -1,0 +1,112 @@
+name: Breezze Quality
+
+on:
+  # The wrapper workflow (ci.yml) owns push and pull_request triggers.
+  # Keeping this workflow reusable-only avoids duplicate runs cancelling
+  # one another through the shared concurrency group.
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: breezze-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter:
+    name: Flutter analysis and tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Resolve mobile dependencies
+        working-directory: apps/mobile
+        run: flutter pub get
+
+      - name: Generate Drift database code
+        working-directory: apps/mobile
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Analyze mobile app
+        working-directory: apps/mobile
+        run: flutter analyze
+
+      - name: Test mobile app
+        working-directory: apps/mobile
+        run: flutter test --reporter expanded
+
+      - name: Resolve API client dependencies
+        working-directory: packages/api_client
+        run: flutter pub get
+
+      - name: Analyze API client
+        working-directory: packages/api_client
+        run: flutter analyze --fatal-infos
+
+      - name: Test API client
+        working-directory: packages/api_client
+        run: flutter test --reporter expanded
+
+      - name: Resolve design system dependencies
+        working-directory: packages/design_system
+        run: flutter pub get
+
+      - name: Analyze design system
+        working-directory: packages/design_system
+        run: flutter analyze --fatal-infos
+
+      - name: Resolve audio contracts dependencies
+        working-directory: packages/audio_contracts
+        run: flutter pub get
+
+      - name: Analyze audio contracts
+        working-directory: packages/audio_contracts
+        run: flutter analyze --fatal-infos
+
+      - name: Test audio contracts
+        working-directory: packages/audio_contracts
+        run: flutter test --reporter expanded
+
+  backend:
+    name: NestJS and Prisma validation
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Validate Prisma schema
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/breezze_ci
+        run: npx prisma validate
+
+      - name: Typecheck backend
+        run: npm run typecheck
+
+      - name: Test backend
+        run: npm test -- --runInBand
+
+      - name: Build backend
+        run: npm run build

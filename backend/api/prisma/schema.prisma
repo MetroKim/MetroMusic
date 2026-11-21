@@ -327,10 +327,11 @@ model ClassicalWork {
 }
 
 model ClassicalMovement {
-  id       String @id @default(uuid())
+  id       String        @id @default(uuid())
   workId   String
   title    String
   position Int
+  work     ClassicalWork @relation(fields: [workId], references: [id], onDelete: Cascade)
 
   @@unique([workId, position])
 }

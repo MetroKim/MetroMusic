@@ -1,4 +1,4 @@
-import 'package:audio_contracts/audio_contracts.dart';
+import 'package:breezze_audio_contracts/audio_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const sample = '''
@@ -40,7 +40,7 @@ void main() {
     test('active word within line', () {
       final lyrics = LrcParser.parse('t1', sample);
       final idx = lyrics.activeLineIndex(const Duration(milliseconds: 3700));
-      expect(lyrics.activeWordIndex(idx!, const Duration(milliseconds: 3700)), 0);
+      expect(lyrics.activeWordIndex(idx, const Duration(milliseconds: 3700)), 0);
     });
 
     test('ignores metadata and plain text', () {
@@ -75,8 +75,12 @@ void main() {
 
       final start = DateTime.utc(2026, 11, 17);
       bus.onPlay('t1', start);
-      bus.onTick('t1', start.add(const Duration(seconds: 30)));
-      bus.onTick('t1', start.add(const Duration(seconds: 60)));
+      // ScrobbleBus intentionally caps each tick at two seconds so a long
+      // scheduler pause cannot count as thirty seconds of listening.
+      for (var tick = 1; tick <= 15; tick++) {
+        bus.onTick('t1', start.add(Duration(seconds: tick * 2)));
+      }
+      bus.onTick('t1', start.add(const Duration(seconds: 32)));
       expect(submitted.length, 1);
     });
   });

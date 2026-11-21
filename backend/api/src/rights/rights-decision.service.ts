@@ -31,16 +31,36 @@ export class RightsDecisionService {
     }
 
     if (!permission) {
+      // A preview grant can never authorize downloads, caching or other
+      // full-content actions. It is only a limited fallback for stream.full.
+      if (req.action !== 'stream.full') {
+        return denyDecision('NO_EXPLICIT_AUTHORIZATION');
+      }
+
       const preview = await this.prisma.rightsUsagePermission.findFirst({
         where: { trackId: req.trackId, action: 'preview' },
       });
-      if (preview) {
-        return allowDecision({
-          previewOnly: true,
-          qualityRestriction: null,
-        });
+      if (!preview) return denyDecision('NO_EXPLICIT_AUTHORIZATION');
+
+      // Preview permissions have their own validity window. A stale or
+      // future preview grant must never be treated as active authorization.
+      const now = new Date();
+      if (preview.startAt && preview.startAt > now) {
+        return denyDecision('RIGHTS_WINDOW_NOT_OPEN');
       }
-      return denyDecision('NO_EXPLICIT_AUTHORIZATION');
+      if (preview.endAt && preview.endAt < now) {
+        return denyDecision('RIGHTS_EXPIRED');
+      }
+
+      const attribution = await this.prisma.providerAttribution.findFirst({
+        where: { trackId: req.trackId },
+      });
+      return allowDecision({
+        previewOnly: true,
+        qualityRestriction: null,
+        expiresAt: preview.endAt ?? null,
+        attribution: attribution?.text ?? null,
+      });
     }
 
     const now = new Date();

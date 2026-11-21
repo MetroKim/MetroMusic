@@ -1,12 +1,15 @@
+import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
-import '../../core/api/breezze_api.dart';
 import '../../core/auth/auth_session.dart';
+import '../../core/audio/just_audio_engine_adapter.dart';
+import '../../core/database/migrate_to_drift.dart';
 import '../../core/database/outbox_sync_service.dart';
+import '../../features/player/player_controller.dart';
 import '../../features/authentication/auth_screen.dart';
 import '../../features/onboarding/onboarding_flow.dart';
 import 'bz_shell.dart';
@@ -26,11 +29,20 @@ class BreezzeAppRoot extends ConsumerStatefulWidget {
 class _BreezzeAppRootState extends ConsumerState<BreezzeAppRoot> {
   bool _showOnboarding = false;
   GlobalKey? _shellKey;
+  ProviderContainer? _container;
+  JustAudioEngineAdapter? _audioEngine;
 
   @override
   void initState() {
     super.initState();
+    _container = ProviderScope.containerOf(context, listen: false);
+    _audioEngine = JustAudioEngineAdapter();
+    _container!.read(playerControllerProvider.notifier).attachEngine(_audioEngine!);
+    unawaited(migrateJsonStoresToDrift(_container!));
     ref.listenManual(authSessionProvider, (prev, next) {
+      if (prev is AuthSignedIn && next is AuthSignedOut) {
+        unawaited(ref.read(playerControllerProvider.notifier).stop());
+      }
       if (next is AuthSignedIn && prev is! AuthSignedIn) {
         // Replay offline ops now that a session exists.
         ref.read(outboxSyncProvider).drainIfSignedIn();
@@ -39,6 +51,13 @@ class _BreezzeAppRootState extends ConsumerState<BreezzeAppRoot> {
         _checkOnboardingNeeded();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _container?.read(playerControllerProvider.notifier).detachEngine();
+    _audioEngine?.dispose();
+    super.dispose();
   }
 
   Future<void> _checkOnboardingNeeded() async {
@@ -51,6 +70,7 @@ class _BreezzeAppRootState extends ConsumerState<BreezzeAppRoot> {
             'Authorization': 'Bearer ${api.accessToken}',
         },
       );
+      if (!mounted) return;
 
       if (res.statusCode == 404 || res.statusCode == 204) {
         // No saved preferences: first-time user.

@@ -1,35 +1,22 @@
-import { Controller, Get, NotFoundException, Param } from '@nestjs/common';
-import { PrismaService } from '../prisma.service';
+import { Controller, Get, Param } from '@nestjs/common';
+import { RadioService } from './radio.service';
 
 @Controller('radio')
 export class RadioController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly radio: RadioService) {}
 
   @Get('stations')
-  async stations() {
-    return this.prisma.radioStation.findMany({
-      orderBy: { name: 'asc' },
-    });
+  stations() {
+    return this.radio.listStations();
   }
 
   @Get('stations/:id')
-  async station(@Param('id') id: string) {
-    const station = await this.prisma.radioStation.findUnique({
-      where: { id },
-      include: {
-        programs: { orderBy: { airsAt: 'desc' }, take: 10 },
-      },
-    });
-    if (!station) throw new NotFoundException('STATION_NOT_FOUND');
-    return station;
+  station(@Param('id') id: string) {
+    return this.radio.getStation(id);
   }
 
   @Get('programs/:stationId')
-  async programs(@Param('stationId') stationId: string) {
-    return this.prisma.radioProgram.findMany({
-      where: { stationId },
-      orderBy: { airsAt: 'desc' },
-      take: 20,
-    });
+  programs(@Param('stationId') stationId: string) {
+    return this.radio.programsForStation(stationId);
   }
 }

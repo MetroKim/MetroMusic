@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
-import '../core/api/breezze_api.dart';
-import '../core/auth/auth_session.dart';
+import '../../core/api/breezze_api.dart';
+import '../../core/auth/auth_session.dart';
 
 /// Onboarding state machine: collects country, genres, and favorite
 /// artists, then POSTs once to /onboarding/preferences.
@@ -121,5 +121,5 @@ String countryName(String code) {
 }
 
 /// Convenience access to the authenticated api client.
-BreezzeApi authenticatedApi(Ref ref) =>
+BreezzeApi authenticatedApi(WidgetRef ref) =>
     ref.read(authSessionProvider.notifier).api;

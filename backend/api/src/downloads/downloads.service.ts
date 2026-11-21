@@ -22,24 +22,36 @@ export class DownloadsService {
       territory: dto.territory,
     });
 
-    if (!decision.allowed) {
-      return { allowed: false, reason: decision.reason, url: null };
+    if (!decision.allowed || decision.previewOnly) {
+      return {
+        allowed: false,
+        reason: decision.previewOnly ? 'PREVIEW_ONLY' : decision.reason,
+        url: null,
+      };
     }
 
+    const signed = this.signer.createPlaybackUrl(
+      dto.trackId,
+      'download',
+      decision.expiresAt,
+    );
     const record = await this.prisma.downloadRecord.upsert({
       where: { userId_trackId: { userId, trackId: dto.trackId } },
-      create: { userId, trackId: dto.trackId },
-      update: {},
+      create: {
+        userId,
+        trackId: dto.trackId,
+        expiresAt: decision.expiresAt,
+      },
+      update: { expiresAt: decision.expiresAt },
     });
-
-    const url = this.signer.signPlaybackUrl(dto.trackId, 'download');
 
     return {
       allowed: true,
       reason: 'OK',
-      url,
+      url: signed.url,
       recordId: record.id,
-      expiresAt: decision.expiresAt,
+      expiresAt: signed.expiresAt,
+      rightsExpiresAt: decision.expiresAt,
       attribution: decision.attribution,
     };
   }

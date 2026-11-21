@@ -5,8 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'database_providers.dart';
-import 'favorites_dao.dart';
-import 'recently_played_dao.dart';
 import '../../app/bootstrap.dart' show FavoriteTrack;
 import '../../app/recent_store.dart' show RecentEntry;
 

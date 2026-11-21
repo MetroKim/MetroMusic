@@ -1,9 +1,8 @@
 import 'package:breezze_design_system/breezze_design_system.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/bootstrap.dart';
-import '../../app/downloads_controller.dart';
 import '../../app/recent_store.dart';
 import '../../widgets/bz_brand_icons.dart';
 import '../player/player_controller.dart';
@@ -106,7 +105,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ],
           if (_recentlyPlayed.isEmpty && _favorites.isEmpty)
             _FirstRunCard(
-              onSearch: () => ref.read(homeTabHintProvider.notifier).state = 1,
+              onSearch: () => ref.read(homeTabHintProvider.notifier).state = 4,
             ),
         ],
       ),

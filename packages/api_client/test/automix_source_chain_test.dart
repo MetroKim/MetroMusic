@@ -84,7 +84,7 @@ void main() {
   });
 }
 
-const _ctx = ProviderUserContext(
+final _ctx = ProviderUserContext(
     userId: 'u1', territory: 'IN', subscriptionTier: 'premium');
 
 class _StubSource implements ProviderAdapter {

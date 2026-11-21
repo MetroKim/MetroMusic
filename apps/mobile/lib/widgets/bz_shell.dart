@@ -1,13 +1,12 @@
 import 'package:breezze_audio_contracts/audio_contracts.dart';
 import 'package:breezze_design_system/breezze_design_system.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../app/bootstrap.dart';
-import '../app/downloads_controller.dart';
 import '../core/audio/audio_service_bridge.dart';
 import '../core/audio/background_audio.dart';
-import '../core/database/migrate_to_drift.dart';
+import '../features/browse/browse_screen.dart';
+import '../features/radio/radio_screen.dart';
 import '../features/downloads/downloads_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/library/library_screen.dart';
@@ -17,30 +16,14 @@ import '../features/search/search_screen.dart';
 import '../features/settings/settings_screen.dart';
 import 'bz_brand_icons.dart';
 
-/// App root: ProviderScope with the live resolver override + engine +
-/// background audio. FavoritesStore and RecentStore are drift-backed
-/// at the class level (bootstrap.dart / recent_store.dart), so the
-/// JSON→SQLite migration is the only wiring needed here.
+/// Main product shell. The application-level ProviderScope and its
+/// playback engine are owned by BreezzeAppRoot; rebuilding this widget
+/// must never create another provider container or audio engine.
 class BreezzeShell extends StatelessWidget {
   const BreezzeShell({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final container = ProviderContainer(overrides: [
-      playbackResolverProvider.overrideWith(
-          (ref) => ref.watch(liveResolverProvider)),
-    ]);
-
-    attachPlaybackEngine(container);
-
-    // One-shot JSON → SQLite migration against this container.
-    migrateJsonStoresToDrift(container);
-
-    return UncontrolledProviderScope(
-      container: container,
-      child: const _BreezzeRoot(),
-    );
-  }
+  Widget build(BuildContext context) => const _BreezzeRoot();
 }
 
 class _BreezzeRoot extends ConsumerStatefulWidget {
@@ -90,7 +73,7 @@ class BzHome extends ConsumerStatefulWidget {
 class _BzHomeState extends ConsumerState<BzHome> {
   int _index = 0;
 
-  static const _tabs = ['Home', 'Search', 'Library', 'Downloads', 'Settings'];
+  static const _tabs = ['Home', 'Browse', 'Radio', 'Library', 'Search', 'Downloads', 'Settings'];
 
   @override
   void initState() {
@@ -109,8 +92,10 @@ class _BzHomeState extends ConsumerState<BzHome> {
         index: _index,
         children: const [
           HomeScreen(),
-          SearchScreen(),
+          BrowseScreen(),
+          RadioScreen(),
           LibraryScreen(),
+          SearchScreen(),
           DownloadsScreen(),
           SettingsScreen(),
         ],
@@ -227,19 +212,22 @@ class _TabBar extends StatelessWidget {
       blur: 16,
       child: Padding(
         padding: const EdgeInsets.all(6),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var i = 0; i < _BzHomeState._tabs.length; i++)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2),
-                child: _Tab(
-                  label: _BzHomeState._tabs[i],
-                  active: i == index,
-                  onTap: () => onChanged(i),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < _BzHomeState._tabs.length; i++)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: _Tab(
+                    label: _BzHomeState._tabs[i],
+                    active: i == index,
+                    onTap: () => onChanged(i),
+                  ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -1,5 +1,5 @@
 import 'package:breezze_design_system/breezze_design_system.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Shared onboarding scaffolding: brand header, calm progress dots,
 /// glass card body, consistent next/cancel buttons.

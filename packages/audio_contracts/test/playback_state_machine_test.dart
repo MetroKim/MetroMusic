@@ -1,4 +1,4 @@
-import 'package:audio_contracts/audio_contracts.dart';
+import 'package:breezze_audio_contracts/audio_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -82,5 +82,64 @@ void main() {
       m.dispatch(StartRequested('t1'));
       expect(m.state, PlaybackState.resolving);
     });
+
+    test('a new selection supersedes an active playback state', () {
+      final m = PlaybackStateMachine()
+        ..dispatch(StartRequested('first', requestId: 1))
+        ..dispatch(SourceResolved('first', 'url-1', requestId: 1))
+        ..dispatch(MediaReady(requestId: 1))
+        ..dispatch(PlayPressed());
+
+      m.dispatch(StartRequested('second', requestId: 2));
+      expect(m.state, PlaybackState.resolving);
+      expect(m.activeTrackId, 'second');
+      expect(m.activeRequestId, 2);
+    });
+
+    test('late resolver response from an older request is ignored', () {
+      final m = PlaybackStateMachine()
+        ..dispatch(StartRequested('first', requestId: 1))
+        ..dispatch(StartRequested('second', requestId: 2));
+
+      m.dispatch(SourceResolved('first', 'stale-url', requestId: 1));
+      expect(m.state, PlaybackState.resolving);
+      expect(m.activeTrackId, 'second');
+
+      m.dispatch(SourceResolved('second', 'current-url', requestId: 2));
+      expect(m.state, PlaybackState.loading);
+    });
+
+    test('late failure cannot fail the currently selected track', () {
+      final m = PlaybackStateMachine()
+        ..dispatch(StartRequested('first', requestId: 10))
+        ..dispatch(StartRequested('second', requestId: 11));
+
+      m.dispatch(SourceResolutionFailed('OLD_REQUEST', requestId: 10));
+      expect(m.state, PlaybackState.resolving);
+      m.dispatch(SourceResolutionFailed('CURRENT_REQUEST', requestId: 11));
+      expect(m.state, PlaybackState.failed);
+    });
+
+    test('new selection is accepted while previous request is loading', () {
+      final m = PlaybackStateMachine()
+        ..dispatch(StartRequested('first', requestId: 1))
+        ..dispatch(SourceResolved('first', 'url', requestId: 1));
+
+      expect(m.state, PlaybackState.loading);
+      m.dispatch(StartRequested('second', requestId: 2));
+      expect(m.state, PlaybackState.resolving);
+    });
+
+    test('stop invalidates the active track and returns to idle', () {
+      final m = PlaybackStateMachine()
+        ..dispatch(StartRequested('t1', requestId: 1))
+        ..dispatch(SourceResolved('t1', 'url', requestId: 1));
+      m.dispatch(StopRequested(requestId: 2));
+      expect(m.state, PlaybackState.idle);
+      expect(m.activeTrackId, isNull);
+      m.dispatch(SourceResolved('t1', 'late-url', requestId: 1));
+      expect(m.state, PlaybackState.idle);
+    });
+
   });
 }

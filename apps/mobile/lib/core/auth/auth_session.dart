@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../core/api/breezze_api.dart';
+import '../api/breezze_api.dart';
 
 /// Auth session state — what the UI renders.
 sealed class AuthState {

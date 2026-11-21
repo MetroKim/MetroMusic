@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'bz_track.dart';
 import 'lyrics_provider.dart';
-import 'youtube_source_adapter.dart';
 
 /// Downloads library — offline tracks with lyrics and cover art stored
 /// alongside each track (§54.3).
@@ -14,12 +13,10 @@ import 'youtube_source_adapter.dart';
 ///   <downloadsDir>/<trackId>/meta.json
 class DownloadsLibrary {
   final Directory root;
-  final YoutubeSourceAdapter source;
   final LyricsProvider lyrics;
 
   DownloadsLibrary({
     required this.root,
-    required this.source,
     required this.lyrics,
   });
 
@@ -31,29 +28,54 @@ class DownloadsLibrary {
   /// dominant cost); lyrics and art are near-instant.
   Future<bool> download(
     BzTrack track, {
+    required String downloadUrl,
     void Function(double progress)? onProgress,
   }) async {
     final dir = _dirFor(track.id);
-    final videoId =
-        track.id.startsWith('bz:') ? track.id.substring(3) : track.id;
-
     try {
       await dir.create(recursive: true);
 
-      // 1. Audio (with byte-accurate progress)
+      // 1. Fetch only the short-lived URL issued by the backend after its
+      // download-rights decision. Never extract media directly from a
+      // metadata/search provider in the client.
       final audioFile = File('${dir.path}/audio.m4a');
       if (!await audioFile.exists()) {
-        final sink = audioFile.openWrite();
+        final partialFile = File('${dir.path}/audio.part');
+        final client = HttpClient();
         try {
-          await for (final chunk in source.audioBytes(
-            videoId,
-            onProgress: onProgress,
-          )) {
-            sink.add(chunk);
+          final request = await client.getUrl(Uri.parse(downloadUrl));
+          final response = await request.close();
+          if (response.statusCode != HttpStatus.ok) {
+            throw HttpException(
+              'authorized_download_${response.statusCode}',
+              uri: Uri.parse(downloadUrl),
+            );
           }
-          await sink.flush();
+
+          final sink = partialFile.openWrite();
+          var received = 0;
+          try {
+            await for (final chunk in response) {
+              sink.add(chunk);
+              received += chunk.length;
+              if (response.contentLength > 0) {
+                onProgress?.call(
+                  (received / response.contentLength).clamp(0.0, 1.0),
+                );
+              }
+            }
+            await sink.flush();
+          } finally {
+            await sink.close();
+          }
+          await partialFile.rename(audioFile.path);
+        } catch (_) {
+          if (await partialFile.exists()) {
+            await partialFile.delete();
+          }
+          rethrow;
         } finally {
-          await sink.close();
+          client.close(force: true);
         }
       }
       onProgress?.call(1.0);

@@ -9,12 +9,12 @@ enum AudioQualityTier {
   lossless('Lossless · FLAC/ALAC 44.1 kHz', true, 1411),
   hiRes('Hi-Res Lossless · up to 192 kHz', true, 4608);
 
-  const AudioQualityTier(this.label, this.lossless, this.approxKbps);
+  const AudioQualityTier(this.label, this.isLossless, this.approxKbps);
 
   final String label;
 
   /// True only for genuinely lossless delivery.
-  final bool lossless;
+  final bool isLossless;
 
   /// Approximate bitrate in kbps, used for network ceilings (§19.2).
   final int approxKbps;

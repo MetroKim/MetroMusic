@@ -81,6 +81,41 @@ class BreezzeApi {
     return AuthResponse.fromJson(data);
   }
 
+  Future<Map<String, dynamic>> resolveCatalogTrack({
+    required String externalId,
+    required String source,
+    required String title,
+    required String artistName,
+    required int durationSec,
+  }) =>
+      _post('/catalog/resolve', {
+        'externalId': externalId,
+        'source': source,
+        'title': title,
+        'artistName': artistName,
+        'durationSec': durationSec,
+      });
+
+  Future<Map<String, dynamic>> resolvePlayback({
+    required String trackId,
+    required String territory,
+    String? requestedQuality,
+  }) =>
+      _post('/playback/resolve', {
+        'trackId': trackId,
+        'territory': territory,
+        if (requestedQuality != null) 'requestedQuality': requestedQuality,
+      });
+
+  Future<Map<String, dynamic>> authorizeDownload({
+    required String trackId,
+    required String territory,
+  }) =>
+      _post('/downloads', {
+        'trackId': trackId,
+        'territory': territory,
+      });
+
   Future<AuthResponse> refresh(String refreshToken) async {
     final data = await _post('/auth/refresh', {
       'refreshToken': refreshToken,

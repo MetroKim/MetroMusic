@@ -26,19 +26,19 @@ class ProviderTrack {
 }
 
 /// Explicit operation results — never fake a capability (§52.2).
-sealed class ProviderOp {}
+sealed class ProviderOp<T> {}
 
-class ProviderOk<T> extends ProviderOp {
+class ProviderOk<T> extends ProviderOp<T> {
   final T value;
   ProviderOk(this.value);
 }
 
-class ProviderUnsupported extends ProviderOp {
+class ProviderUnsupported<T> extends ProviderOp<T> {
   final String reason;
   ProviderUnsupported(this.reason);
 }
 
-class ProviderError extends ProviderOp {
+class ProviderError<T> extends ProviderOp<T> {
   final String code;
   ProviderError(this.code);
 }

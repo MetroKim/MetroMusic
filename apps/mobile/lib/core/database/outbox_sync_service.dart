@@ -5,7 +5,6 @@ import 'package:http/http.dart' as http;
 
 import '../../core/api/breezze_api.dart';
 import '../../core/auth/auth_session.dart';
-import 'catalog_id_map_dao.dart';
 import 'database_providers.dart';
 
 /// Drains the sync outbox against the backend. Called after sign-in.

@@ -6,11 +6,11 @@
 /// capture scripts do it, and search uses the anonymous WEB_REMIX path
 /// (no session cookie, per BitChord's postMusicAnonymous).
 ///
-/// Full-track playback additionally needs the poToken BitChord mints
-/// on-device (BotGuard WebView) — injected through [poTokenProvider].
+/// This adapter is metadata/search only. BotGuard tokens or extracted stream
+/// URLs do not grant Breezze playback rights; full playback must pass the
+/// backend's catalog and rights authorization flow.
 library;
 
-import 'bz_track.dart';
 import 'provider_adapter.dart';
 
 /// Minimal HTTP seam — implemented in the app with package:http.
@@ -49,12 +49,6 @@ class InnertubeConfig {
       http.getText('https://music.youtube.com/').then(parse);
 }
 
-/// Supplies the poToken BitChord's BotGuard WebView mints on-device.
-/// Null until the platform port is wired; playback then answers honestly.
-abstract interface class PoTokenProvider {
-  /// The visitor-bound poToken for streaming requests.
-  Future<String?> token();
-}
 
 class BitChordAdapter implements ProviderAdapter {
   static const _baseUrl = 'https://music.youtube.com/youtubei/v1';
@@ -62,11 +56,10 @@ class BitChordAdapter implements ProviderAdapter {
   static const _webRemixClientId = '67';
 
   final BackendHttp http;
-  final PoTokenProvider? poTokenProvider;
 
   InnertubeConfig? _config;
 
-  BitChordAdapter({required this.http, this.poTokenProvider});
+  BitChordAdapter({required this.http});
 
   Future<InnertubeConfig> _ensureConfig() async =>
       _config ??= await InnertubeConfig.fetch(http);
@@ -98,9 +91,9 @@ class BitChordAdapter implements ProviderAdapter {
   @override
   String get adapterVersion => '2.0.0';
 
-  /// BitChord plays full tracks; so does Breezze once poToken is wired.
+  /// Search metadata only. Playback must be authorized by Breezze's backend.
   @override
-  bool get supportsPlayback => true;
+  bool get supportsPlayback => false;
 
   // ---- Parsing helpers (same shapes as before) --------------------------
 
@@ -137,13 +130,17 @@ class BitChordAdapter implements ProviderAdapter {
   static String? _flexColumnText(Object? item, int index) {
     final cols = _walk(item, 'musicResponsiveListItemFlexColumnRenderer');
     if (index >= cols.length) return null;
-    return _runsText(cols[index]);
+    final renderer = cols[index];
+    if (renderer is! Map) return null;
+    return _runsText(renderer['text']);
   }
 
   static Duration _durationOf(Object? item) {
     final fixed = _walk(item, 'musicResponsiveListItemFixedColumnRenderer');
     if (fixed.isEmpty) return Duration.zero;
-    final text = _runsText(fixed.first);
+    final renderer = fixed.first;
+    if (renderer is! Map) return Duration.zero;
+    final text = _runsText(renderer['text']);
     if (text == null) return Duration.zero;
     final parts = text.split(':');
     try {
@@ -220,69 +217,14 @@ class BitChordAdapter implements ProviderAdapter {
 
   @override
   Future<ProviderOp<String>> resolvePlayback(
-      String providerTrackId, ProviderUserContext userContext) async {
-    final videoId =
-        providerTrackId.startsWith('bz:') ? providerTrackId.substring(3) : providerTrackId;
-    try {
-      final config = await _ensureConfig();
-      final data = await http.postJson(
-        '$_baseUrl/player?prettyPrint=false&key=${config.apiKey}',
-        {
-          ..._context(config),
-          'videoId': videoId,
-          'contentCheckOk': true,
-          'racyCheckOk': true,
-        },
-        headers: _headers(config.clientVersion),
-      );
-
-      // Playability gate, BitChord-style: read the status, not the HTTP code.
-      final playability = _walk(data, 'playabilityStatus');
-      if (playability.isNotEmpty && playability.first is Map) {
-        final status = (playability.first as Map)['status'];
-        if (status is String && status != 'OK') {
-          return ProviderUnsupported('playability_$status');
-        }
-      }
-
-      final formats = _walk(data, 'adaptiveFormats');
-      String? bestUrl;
-      var bestBitrate = -1;
-      for (final format in formats) {
-        if (format is! Map) continue;
-        final mime = format['mimeType'];
-        if (mime is! String || !mime.startsWith('audio/')) continue;
-        if (format['signatureCipher'] != null) continue;
-        final bitrate = (format['bitrate'] as num?)?.toInt() ?? 0;
-        if (bitrate > bestBitrate && format['url'] is String) {
-          bestBitrate = bitrate;
-          bestUrl = format['url'] as String;
-        }
-      }
-
-      if (bestUrl == null) {
-        // These URLs are poToken-gated in the current era — the exact gap
-        // BitChord's on-device BotGuard WebView closes. Honest result until
-        // that module is ported.
-        return ProviderUnsupported('po_token_required');
-      }
-
-      final poToken = await poTokenProvider?.token();
-      if (poToken != null) {
-        // BitChord appends the visitor poToken to the stream URL.
-        return ProviderOk('$bestUrl&pot=$poToken');
-      }
-      return ProviderOk(bestUrl);
-    } on StateError {
-      return ProviderError('config_scrape_failed');
-    } catch (_) {
-      return ProviderError('network_error');
-    }
-  }
+    String providerTrackId,
+    ProviderUserContext userContext,
+  ) async =>
+      ProviderUnsupported('BACKEND_RIGHTS_CHECK_REQUIRED');
 
   @override
   Future<ProviderOp<String>> getAttributionRequirements(
       String providerTrackId) async {
-    return ProviderOk('Music via BitChord source');
+    return ProviderOk('YouTube Music metadata via Breezze search');
   }
 }

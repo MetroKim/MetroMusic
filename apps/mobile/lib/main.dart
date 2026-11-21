@@ -1,12 +1,21 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'app/bootstrap.dart';
+import 'features/player/player_controller.dart';
 import 'widgets/breezze_app_root.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // JSON → SQLite one-shot migration happens inside the shell's
-  // container (see breezze_shell.dart) — it needs the Riverpod
-  // container the app actually runs with.
-  runApp(const BreezzeAppRoot());
+  runApp(
+    ProviderScope(
+      overrides: [
+        playbackResolverProvider.overrideWith(
+          (ref) => ref.watch(liveResolverProvider),
+        ),
+      ],
+      child: const BreezzeAppRoot(),
+    ),
+  );
 }

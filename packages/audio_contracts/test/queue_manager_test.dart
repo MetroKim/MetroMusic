@@ -1,4 +1,4 @@
-import 'package:audio_contracts/audio_contracts.dart';
+import 'package:breezze_audio_contracts/audio_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 QueueEntry entry(String id, {String origin = 'manual'}) => QueueEntry(
@@ -44,8 +44,8 @@ void main() {
       final q = QueueManager();
       q.replaceWith([entry('a'), entry('b')]);
       q.repeatMode = RepeatMode.repeatOne;
-      expect(q.advance()!.entryId, 'b');
-      expect(q.advance()!.entryId, 'b'); // same again
+      expect(q.advance()!.entryId, 'a'); // current item repeats immediately
+      expect(q.advance()!.entryId, 'a'); // and remains the same
     });
 
     test('repeatAll wraps to the first entry', () {
@@ -85,6 +85,35 @@ void main() {
       q.clear(keepCurrent: true);
       expect(q.current!.entryId, 'a');
       expect(q.upNext, isEmpty);
+    });
+
+ 
+    test('shuffle advances through every unplayed entry without falling back to sequential mode', () {
+      final q = QueueManager();
+      q.replaceWith([entry('a'), entry('b'), entry('c'), entry('d')]);
+      q.toggleShuffle();
+
+      final visited = <String>{q.current!.entryId};
+      for (var i = 0; i < 3; i++) {
+        final next = q.advance();
+        expect(next, isNotNull);
+        visited.add(next!.entryId);
+      }
+
+      expect(visited, {'a', 'b', 'c', 'd'});
+      expect(q.advance(), isNull);
+    });
+
+    test('shuffle repeat-all wraps to the first item in the shuffled cycle', () {
+      final q = QueueManager();
+      q.replaceWith([entry('a'), entry('b'), entry('c')]);
+      q.toggleShuffle();
+      final first = q.current!.entryId;
+      q.repeatMode = RepeatMode.repeatAll;
+
+      q.advance();
+      q.advance();
+      expect(q.advance()!.entryId, first);
     });
 
     test('shuffle toggle preserves unplayed entries set', () {

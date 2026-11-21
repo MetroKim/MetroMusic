@@ -4,8 +4,10 @@ import {
   Get,
   Param,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import { IsInt, IsString, Min, MinLength } from 'class-validator';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CatalogService } from './catalog.service';
 
 export class ResolveTrackDto {
@@ -36,6 +38,7 @@ export class CatalogController {
 
   // ID convergence: external track → one canonical catalog row.
   @Post('resolve')
+  @UseGuards(JwtAuthGuard)
   resolve(@Body() dto: ResolveTrackDto) {
     return this.catalog.resolve(dto);
   }

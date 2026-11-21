@@ -1,7 +1,7 @@
 import 'package:breezze_audio_contracts/audio_contracts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../features/player/player_controller.dart';
+import '../../features/player/player_controller.dart';
 
 /// Background-audio bridge contract.
 ///
@@ -51,12 +51,12 @@ final backgroundBridgeProvider =
 /// subscription, app-wide.
 class BackgroundAudioSync {
   final Ref ref;
-  Function()? _unwatch;
+  ProviderSubscription<PlayerState>? _subscription;
 
   BackgroundAudioSync({required this.ref});
 
   void start() {
-    _unwatch = ref.listen(playerControllerProvider, (prev, next) {
+    _subscription = ref.listen(playerControllerProvider, (prev, next) {
       final track = next.currentTrack;
       final bridge = ref.read(backgroundBridgeProvider);
       if (next.playbackState == PlaybackState.idle) {
@@ -74,7 +74,7 @@ class BackgroundAudioSync {
   }
 
   void dispose() {
-    _unwatch?.call();
+    _subscription?.close();
   }
 }
 

@@ -16,28 +16,25 @@ export class CatalogService {
     artistName: string;
     durationSec: number;
   }) {
-    // 1. Existing mapping? Return it.
-    const existing = await this.prisma.track.findUnique({
-      where: { externalId: dto.externalId },
-    });
-    if (existing) return existing;
-
-    // 2. Create the mapping: artist upserted by unique name, then
-    // the track row keyed on externalId.
+    // Artist and track convergence are both upserts. A find-then-create
+    // sequence can race when playback and outbox sync resolve the same
+    // external ID at the same time.
     const artist = await this.prisma.artist.upsert({
       where: { name: dto.artistName },
       create: { name: dto.artistName },
       update: {},
     });
 
-    return this.prisma.track.create({
-      data: {
+    return this.prisma.track.upsert({
+      where: { externalId: dto.externalId },
+      create: {
         externalId: dto.externalId,
         source: dto.source,
         title: dto.title,
         artistId: artist.id,
         duration: Math.round(dto.durationSec),
       },
+      update: {},
     });
   }
 

@@ -166,13 +166,20 @@ class QueueManager {
     if (shuffle) {
       final order = _shuffledOrder;
       final pos = order.indexOf(_entries[cur].entryId);
-      if (pos < 0) return (cur + 1 < _entries.length) ? cur + 1 : null;
+      // A missing current entry indicates a stale shuffle snapshot. Do not
+      // silently fall back to sequential playback and violate shuffle mode.
+      if (pos < 0) return null;
       if (pos + 1 < order.length) {
-        return _entries.indexWhere((e) => e.entryId == order[pos + 1]);
+        final nextIndex =
+            _entries.indexWhere((e) => e.entryId == order[pos + 1]);
+        return nextIndex < 0 ? null : nextIndex;
       }
-      return (repeatMode == RepeatMode.repeatAll)
-          ? _entries.indexWhere((e) => e.entryId == order[0])
-          : null;
+      if (repeatMode == RepeatMode.repeatAll && order.isNotEmpty) {
+        final firstIndex =
+            _entries.indexWhere((e) => e.entryId == order.first);
+        return firstIndex < 0 ? null : firstIndex;
+      }
+      return null;
     }
     if (cur + 1 < _entries.length) return cur + 1;
     if (repeatMode == RepeatMode.repeatAll) return 0;
@@ -181,13 +188,22 @@ class QueueManager {
 
   void _rebuildShuffle() {
     if (!shuffle) return;
-    // Preserve remaining unplayed order; shuffle only the tail after current.
-    final remaining = <QueueEntry>[];
-    if (_currentIndex != null && _currentIndex! + 1 < _entries.length) {
-      remaining.addAll(_entries.sublist(_currentIndex! + 1));
-      remaining.shuffle(math.Random());
+
+    // Keep the current entry in the snapshot so advance() can find its
+    // position. Shuffle only entries that have not played yet.
+    final ordered = <QueueEntry>[];
+    if (_currentIndex != null && _currentIndex! < _entries.length) {
+      ordered.add(_entries[_currentIndex!]);
+      if (_currentIndex! + 1 < _entries.length) {
+        final remaining = _entries.sublist(_currentIndex! + 1);
+        remaining.shuffle(math.Random());
+        ordered.addAll(remaining);
+      }
+    } else {
+      ordered.addAll(_entries);
+      ordered.shuffle(math.Random());
     }
-    _shuffledOrder = remaining.map((e) => e.entryId).toList();
+    _shuffledOrder = ordered.map((e) => e.entryId).toList();
   }
 
   /// Toggling shuffle preserves the unplayed queue (§53.4).
