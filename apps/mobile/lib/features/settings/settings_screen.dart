@@ -1,38 +1,42 @@
+import 'package:breezze_design_system/breezze_design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'widgets/bz_brand_icons.dart';
+import '../../widgets/bz_brand_icons.dart';
 
-/// Settings — audio quality, playback, downloads, membership (§19, §18).
-/// Premium-gated toggles are hints; the server is the entitlement
-/// authority (§18.4).
+/// Settings scaffold. Persist each preference and enforce entitlements
+/// through the backend before exposing production controls.
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-
     return SafeArea(
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 220),
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 180),
         children: [
           Text('Settings', style: theme.textTheme.displayMedium),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           _section(theme, 'Audio Quality', [
-            _qualityPicker(theme, 'Streaming Quality'),
-            _qualityPicker(theme, 'Download Quality'),
+            const _SettingRow(title: 'Streaming Quality', value: 'High'),
+            const _SettingRow(title: 'Download Quality', value: 'High'),
           ]),
           _section(theme, 'Playback', [
-            _switchTile(theme, 'Gapless Playback', true),
-            _switchTile(theme, 'AutoMix (Premium)', false),
-            _switchTile(theme, 'Sound Check', false),
+            const _SettingRow(title: 'Gapless Playback', value: 'Available'),
+            const _SettingRow(title: 'Crossfade', value: 'Off'),
+            const _SettingRow(title: 'Automix', value: 'Unavailable'),
           ]),
           _section(theme, 'Downloads', [
-            _switchTile(theme, 'Download over Wi-Fi only', true),
+            const _SettingRow(title: 'Download over Wi-Fi only', value: 'On'),
           ]),
-          _section(theme, 'Membership', [
-            _membershipTile(theme),
+          _section(theme, 'Account', [
+            ListTile(
+              leading: BzBnoteMark(size: 28, color: theme.bzAccent),
+              title: const Text('Account and privacy'),
+              subtitle: const Text('Manage profile, history and data'),
+              onTap: () {},
+            ),
           ]),
         ],
       ),
@@ -45,12 +49,15 @@ class SettingsScreen extends ConsumerWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 24, 4, 8),
-          child: Text(title.toUpperCase(),
-              style: TextStyle(
-                  fontSize: BzType.footnote,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.8,
-                  color: theme.bzText2)),
+          child: Text(
+            title.toUpperCase(),
+            style: TextStyle(
+              fontSize: BzType.footnote,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+              color: theme.bzText2,
+            ),
+          ),
         ),
         Container(
           decoration: BoxDecoration(
@@ -63,54 +70,17 @@ class SettingsScreen extends ConsumerWidget {
       ],
     );
   }
-
-  Widget _qualityPicker(ThemeData theme, String title) {
-    return ListTile(
-      title: Text(title),
-      trailing: const Text('High'),
-      onTap: () {},
-    );
-  }
-
-  Widget _switchTile(ThemeData theme, String title, bool initial) {
-    return _SwitchRow(title: title, initial: initial);
-  }
-
-  Widget _membershipTile(ThemeData theme) {
-    return ListTile(
-      leading: BzBnoteMark(size: 28, color: theme.bzAccent),
-      title: const Text('Upgrade to Premium'),
-      subtitle: Text(
-          'Unlock lossless audio, Hi-Res, downloads and AutoMix',
-          style: theme.textTheme.bodySmall),
-      trailing: ElevatedButton(
-        onPressed: () {},
-        child: const Text('Upgrade'),
-      ),
-    );
-  }
 }
 
-class _SwitchRow extends StatefulWidget {
+class _SettingRow extends StatelessWidget {
   final String title;
-  final bool initial;
+  final String value;
 
-  const _SwitchRow({required this.title, required this.initial});
-
-  @override
-  State<_SwitchRow> createState() => _SwitchRowState();
-}
-
-class _SwitchRowState extends State<_SwitchRow> {
-  late bool _value = widget.initial;
+  const _SettingRow({required this.title, required this.value});
 
   @override
-  Widget build(BuildContext context) {
-    return SwitchListTile(
-      value: _value,
-      onChanged: (v) => setState(() => _value = v),
-      title: Text(widget.title),
-      dense: true,
-    );
-  }
+  Widget build(BuildContext context) => ListTile(
+        title: Text(title),
+        trailing: Text(value),
+      );
 }

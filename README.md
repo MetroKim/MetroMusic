@@ -1,97 +1,76 @@
 <div align="center">
 
-# 🎵 Chordline
+# MetroMusic
 
-### One phantom music client, everywhere.
+### Breezze — your music, gathered in one place.
 
-**"The line between platforms disappears."**
-
-Hi-Res lossless playback, pluggable sources, syllable-synced lyrics and a
-floating overlay player — on Android and desktop, from a single
-Kotlin Multiplatform core.
-
-_Kotlin Multiplatform · Compose Multiplatform · GPLv3_
+A cross-platform music discovery and listening client built with Flutter, Dart and a shared audio core.
 
 </div>
 
-> [!IMPORTANT]
-> Chordline is not affiliated with, endorsed by, or connected to YouTube,
-> Google, Spotify, or any streaming platform. Use at your own discretion.
+> Breezze is an independent product. It is not affiliated with Apple, YouTube, Google, Spotify, or any streaming provider. Music-source integrations must comply with provider terms, territory restrictions, and applicable rights.
 
----
+## Product
 
-## What is Chordline?
+Breezze brings together music discovery, a personal library, playback, lyrics, offline listening, and cross-platform experiences under its own visual identity.
 
-A phantom synthesis of two open music clients:
+The product experience plan lives in [docs/PRODUCT_EXPERIENCE.md](docs/PRODUCT_EXPERIENCE.md). The feature-by-feature implementation status is tracked in [docs/audit/gap-register.md](docs/audit/gap-register.md).
 
-| Parent | Contributed |
-|---|---|
-| **[BitChord](https://github.com/kushagrasinghx/BitChord)** (Kotlin, Android, GPLv3) | Lossless FLAC/ALAC engine, bit-perfect USB DAC output, gapless playback + true crossfade, Automix beat-matching, sleep timer, per-network quality ceilings, offline downloads, pluggable module sources, Spotify/Google sign-in, Discord Rich Presence, Last.fm/ListenBrainz scrobbling, 13 lyrics providers, artwork-driven Material 3 frosted-glass UI |
-| **[Liner](https://github.com/tryliner/desktop)** (Electron, Desktop) | Cross-platform desktop shell, floating always-on-top overlay player, syllable-synced lyrics, local library protocol (`chordline-local://`), Feature-Sliced Design, 11-language i18n |
+## Current client architecture
 
-**No code was copied from either repository.** Chordline re-implements the
-merged feature set from scratch and credits both projects as inspiration.
+    MetroMusic/
+    ├── apps/mobile/                 # Flutter consumer app
+    │   ├── lib/features/            # Home, catalog, player, downloads, settings
+    │   ├── lib/widgets/             # Breezze shell and brand components
+    │   └── assets/icons/            # Original Breezze vector marks
+    ├── packages/
+    │   ├── design_system/           # Semantic colors, typography, spacing, motion
+    │   ├── audio_contracts/         # Playback state, queue, lyrics, AutoMix
+    │   └── api_client/              # Provider adapters, source chain, downloads
+    ├── docs/
+    │   ├── PRODUCT_EXPERIENCE.md
+    │   ├── architecture/
+    │   └── audit/
+    └── shared/, sharedUi/, app/, desktop/ # Legacy Chordline/KMP reference modules
 
-### The core bet
+The accepted Flutter-first direction is documented in [ADR-001](docs/architecture/ADR-001-flutter-first-shared-codebase.md). The older Chordline Kotlin Multiplatform modules remain as reference material and are not the active Flutter app entry point.
 
-Replace Electron with **Kotlin Multiplatform + Compose Multiplatform**, so both
-surfaces share one logic core (`shared/`) and one design system (`sharedUi/`).
+## Product experience included
 
----
+- Home / Listen Now
+- Browse: new releases, charts, genres, moods, videos and concerts
+- Radio: stations, live state and schedules
+- Library: playlists, artists, albums, songs, genres and downloads
+- Search across catalog and library
+- Album, playlist and artist detail experiences (planned catalog integration)
+- Mini-player and full Now Playing surface
+- Queue, shuffle, repeat, lyrics, audio quality, crossfade and Automix foundations
+- Light/dark monochrome design system and responsive navigation direction
 
-## Features (implemented core)
-
-- **CrossfadeController** — true crossfade, 0–12 s, fires exactly `crossfadeMs` before track end
-- **GaplessQueue** — preloads the next track, no silence between songs
-- **Automix [Beta]** — beat-matching tempo-stretch (±10 % with double-time folding), energy-aware transition lengths
-- **SleepTimer** — fixed presets or "stop after this track"
-- **LyricsPipeline + LrcParser** — line- and word-synced enhanced LRC, 12-provider registry
-- **SourcePlugin registry** — pluggable module sources with health checks (YouTube Music, Spotify, Local)
-- **ScrobbleBus** — Last.fm / ListenBrainz with the 30-second minimum-play rule
-- **DiscordRichPresence** — live track/artist/progress hook
-
-### Roadmap
-
-Per-network quality ceilings, bit-perfect USB exclusive output, WASM request
-signer (`signer/`), Web (wasmJs), Wear OS, Android TV, WebGL lyrics backdrop,
-offline downloads, 11-language i18n.
-
----
-
-## Architecture
-
-Feature-Sliced Design: imports only point down the layers
-(`app → widgets → features → entities → shared`).
-
-```
-chordline/
-├── shared/       # KMP core: playback, sources, lyrics, scrobbling
-├── sharedUi/     # Compose design system (frosted-glass, artwork palette)
-├── app/          # Android (Compose)
-└── desktop/      # Compose Desktop (Windows/macOS/Linux) + overlay window
-```
+Some screens are UI foundations awaiting real repositories and licensed catalog sources. The app intentionally shows explicit empty states rather than pretending sample content is live music.
 
 ## Getting started
 
-Requires JDK 17+, Gradle 8.9+, and the Android SDK (for `:app`).
+Requires Flutter 3.22+ and a compatible Dart SDK.
 
-```bash
-git clone -b chordline https://github.com/MetroKim/MetroMusic.git
-cd MetroMusic
+    git clone https://github.com/MetroKim/MetroMusic.git
+    cd MetroMusic/apps/mobile
+    flutter pub get
+    flutter run
 
-./gradlew :shared:desktopTest    # run the core characterization tests
-./gradlew :desktop:run          # desktop app (Windows/macOS/Linux)
-./gradlew :app:assembleDebug    # Android APK
-```
+Run package tests from the repository root:
 
-## Building desktop distributions
+    cd ../..
+    flutter test packages/audio_contracts
+    flutter test packages/api_client
 
-```bash
-./gradlew :desktop:packageMsi   # Windows
-./gradlew :desktop:packageDeb   # Linux
-./gradlew :desktop:packageDmg   # macOS
-```
+## Source and rights policy
+
+- Provider credentials, signing keys and privileged tokens must stay server-side.
+- A track is playable only when the selected source is authorized for the user's territory and entitlement.
+- Do not proxy, download, or re-host media without the relevant rights and provider authorization.
+- If no valid source is available, show an unavailable state and permitted alternatives. Never substitute a different recording silently.
 
 ## License
 
-GPLv3 — see [LICENSE](LICENSE).
+See [LICENSE](LICENSE).

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app/bootstrap.dart';
-import 'features/home/home_screen.dart';
 import 'features/player/player_controller.dart';
 import 'widgets/bz_shell.dart';
 
@@ -36,7 +35,7 @@ class BreezzeApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: bzLightTheme(),
       darkTheme: bzDarkTheme(),
-      home: const BreezzeShell(),
+      home: const BzShell(),
     );
   }
 }
