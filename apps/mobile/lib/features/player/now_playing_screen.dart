@@ -10,7 +10,7 @@ import '../player/player_controller.dart';
 
 /// Now Playing — premium edition: ambient artwork backdrop (content is
 /// the colour), breathing artwork on the calm 2s loop, word-synced
-/// karaoke lyrics.
+/// karaoke lyrics with active-line scale and edge fog.
 class NowPlayingScreen extends ConsumerStatefulWidget {
   const NowPlayingScreen({super.key});
 
@@ -349,6 +349,9 @@ class _PlayPauseButton extends StatelessWidget {
   }
 }
 
+/// Lyrics view — BzLyricLine states inside the fogged list (edge fog
+/// lifts at the scroll ends on the token curve). Word-synced lines keep
+/// the karaoke word wrap; plain lines use BzLyricLine directly.
 class _LyricsView extends StatelessWidget {
   final Lyrics? lyrics;
   final String mode;
@@ -376,8 +379,8 @@ class _LyricsView extends StatelessWidget {
     final activeIndex = lyrics!.activeLineIndex(position);
     final isSynced = mode == 'synced';
 
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+    return BzFoggedListView(
+      padding: const EdgeInsets.fromLTRB(0, 24, 0, 24),
       itemCount: lyrics!.lines.length,
       itemBuilder: (context, i) {
         final line = lyrics!.lines[i];
@@ -385,42 +388,39 @@ class _LyricsView extends StatelessWidget {
         final activeWord =
             active && isSynced ? lyrics!.activeWordIndex(i, position) : -1;
 
-        if (line.words.isEmpty) {
+        // Word-synced karaoke wrap for lines with word timings.
+        if (line.words.isNotEmpty) {
           return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 200),
-              style: TextStyle(
-                fontSize: BzType.headline,
-                fontWeight: active ? FontWeight.w700 : FontWeight.w400,
-                color: active ? theme.bzText1 : theme.bzText2,
-              ),
-              child: Text(line.text),
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 24),
+            child: Wrap(
+              children: [
+                for (var w = 0; w < line.words.length; w++)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 200),
+                      style: TextStyle(
+                        fontSize: BzType.headline,
+                        fontWeight:
+                            active ? FontWeight.w700 : FontWeight.w400,
+                        color: active
+                            ? (w <= activeWord
+                                ? theme.bzText1
+                                : theme.bzText2)
+                            : theme.bzText2,
+                      ),
+                      child: Text(line.words[w].text),
+                    ),
+                  ),
+              ],
             ),
           );
         }
 
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Wrap(
-            children: [
-              for (var w = 0; w < line.words.length; w++)
-                Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 200),
-                    style: TextStyle(
-                      fontSize: BzType.headline,
-                      fontWeight: active ? FontWeight.w700 : FontWeight.w400,
-                      color: active
-                          ? (w <= activeWord ? theme.bzText1 : theme.bzText2)
-                          : theme.bzText2,
-                    ),
-                    child: Text(line.words[w].text),
-                  ),
-                ),
-            ],
-          ),
+        // Plain / line-synced: the shared BzLyricLine component.
+        return BzLyricLine(
+          text: line.text,
+          active: active,
         );
       },
     );
